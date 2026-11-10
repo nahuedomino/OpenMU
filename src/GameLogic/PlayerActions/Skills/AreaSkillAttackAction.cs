@@ -154,6 +154,7 @@ public class AreaSkillAttackAction
 
     private async ValueTask PerformAutomaticHitsAsync(Player player, ushort extraTargetId, Point targetAreaCenter, SkillEntry skillEntry, Skill skill, byte rotation)
     {
+        using var attackContext = new AreaSkillAttackContext(skill, extraTargetId);
         bool isCombo = false;
         if (player.ComboState is { } comboState)
         {

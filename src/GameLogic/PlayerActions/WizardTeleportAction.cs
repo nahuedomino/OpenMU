@@ -19,7 +19,6 @@ public class WizardTeleportAction
 
     private static readonly short[] PreventingMagicEffects =
     {
-        0x39, // Stone
         0x3D, // Stun
         0x48, // Sleep
         0x92, // Freeze2
@@ -44,7 +43,8 @@ public class WizardTeleportAction
             && !IsTeleportPreventedByPlugIns(player, target)
             && await player.TryConsumeForSkillAsync(skillEntry).ConfigureAwait(false))
         {
-            _ = Task.Run(() => player.TeleportAsync(target, skill));
+            // Start immediately so restriction plugins see IsTeleporting before the next request.
+            _ = player.TeleportAsync(target, skill);
         }
         else
         {
@@ -75,12 +75,13 @@ public class WizardTeleportAction
             && !IsTeleportPreventedByPlugIns(targetPlayer, target)
             && await player.TryConsumeForSkillAsync(skillEntry).ConfigureAwait(false))
         {
-            _ = Task.Run(() => targetPlayer.TeleportAsync(target, skill));
+            _ = targetPlayer.TeleportAsync(target, skill);
         }
     }
 
     private static bool CanPlayerBeTeleported(Player player)
     {
+        // Ice Arrow (0x39) roots movement, but does not silence skills or remove the freeze on teleport.
         return !player.MagicEffectList.ContainsAnyEffect(PreventingMagicEffects);
     }
 

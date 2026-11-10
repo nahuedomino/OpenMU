@@ -170,6 +170,70 @@ public class CastleSiegeTeleportTests
         Assert.That(player.Attributes[Stats.CurrentMana], isPrevented ? Is.EqualTo(manaBefore) : Is.EqualTo(manaBefore - ManaCost));
     }
 
+    /// <summary>
+    /// Ice Arrow is a root, not a silence. Other incapacitating effects still block both teleports.
+    /// </summary>
+    /// <param name="effectNumber">The active magic effect.</param>
+    /// <param name="isPrevented">Whether the effect blocks teleporting.</param>
+    /// <param name="teleportAlly">Whether to teleport a party member instead of the caster.</param>
+    [TestCase(0x39, false, false)]
+    [TestCase(0x39, false, true)]
+    [TestCase(0x3D, true, false)]
+    [TestCase(0x3D, true, true)]
+    [TestCase(0x48, true, false)]
+    [TestCase(0x48, true, true)]
+    [TestCase(0x92, true, false)]
+    [TestCase(0x93, true, false)]
+    public async ValueTask TeleportWithMagicEffectAsync(short effectNumber, bool isPrevented, bool teleportAlly)
+    {
+        var fixture = await SiegeFixture.CreateAsync().ConfigureAwait(false);
+        var player = await fixture.CreatePlayerAsync(1, CastleSiegeJoinSide.Attack1).ConfigureAwait(false);
+        player.Position = new Point(92, 96);
+        var target = player;
+        if (teleportAlly)
+        {
+            target = await fixture.CreatePlayerAsync(2, CastleSiegeJoinSide.Attack1).ConfigureAwait(false);
+            target.Position = new Point(92, 97);
+            var party = new Party(new PartyManager(5, new NullLogger<Party>()), 5, new NullLogger<Party>());
+            await party.AddAsync(player).ConfigureAwait(false);
+            await party.AddAsync(target).ConfigureAwait(false);
+            await player.AddObserverAsync(target).ConfigureAwait(false);
+        }
+
+        await target.MagicEffectList.AddEffectAsync(
+            new MagicEffect(TimeSpan.FromMinutes(1), new BasicModel.MagicEffectDefinition { Number = effectNumber })).ConfigureAwait(false);
+        await AddTeleportSkillAsync(player, teleportAlly ? TeleportAllySkillId : TeleportSkillId).ConfigureAwait(false);
+        var manaBefore = player.Attributes![Stats.CurrentMana];
+        var action = new WizardTeleportAction();
+        if (teleportAlly)
+        {
+            await action.TryTeleportTargetWithSkillAsync(player, target.Id, new Point(92, 99)).ConfigureAwait(false);
+        }
+        else
+        {
+            await action.TryTeleportWithSkillAsync(player, new Point(92, 99)).ConfigureAwait(false);
+        }
+
+        if (!isPrevented)
+        {
+            Assert.That(target.IsTeleporting, Is.True, "The teleport starts before another request can be accepted.");
+            var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+            while (target.IsTeleporting && DateTime.UtcNow < deadline)
+            {
+                await Task.Delay(10).ConfigureAwait(false);
+            }
+
+            Assert.That(target.IsTeleporting, Is.False, "The teleport animation completed.");
+            Assert.That(target.Position, Is.EqualTo(new Point(92, 99)));
+        }
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(player.Attributes[Stats.CurrentMana], isPrevented ? Is.EqualTo(manaBefore) : Is.EqualTo(manaBefore - ManaCost));
+            Assert.That(target.MagicEffectList.ContainsAnyEffect([effectNumber]), Is.True, "Teleport does not dispel the effect.");
+        });
+    }
+
     private static async ValueTask AddTeleportSkillAsync(Player player, short skillNumber)
     {
         var skill = new BasicModel.Skill { Number = skillNumber, Range = 10 };
