@@ -48,7 +48,7 @@ public class AreaSkillAttackAction
 
         if (skill.SkillType is SkillType.AreaSkillExplicitHits)
         {
-            player.SkillHitValidator.RegisterArea((ushort)skill.Number, skill, player.Position, targetAreaCenter);
+            player.SkillHitValidator.RegisterArea((ushort)skill.Number, skill, player.Position, targetAreaCenter, extraTargetId);
         }
 
         await player.ForEachWorldObserverAsync<IShowAreaSkillAnimationPlugIn>(p => p.ShowAreaSkillAnimationAsync(player, skill, targetAreaCenter, rotation), true).ConfigureAwait(false);
