@@ -142,8 +142,10 @@ players see the translation for their language, if there is one.
 Implementing a plugin is documented next to the code, in the
 [MUnique.OpenMU.PlugIns readme](https://github.com/MUnique/OpenMU/blob/master/src/PlugIns/Readme.md).
 
-During automatically applied area-skill hits, `AreaSkillAttackContext.Current`
+During automatically applied area-skill hits and validated explicit-hit packets, `AreaSkillAttackContext.Current`
 exposes the skill and the explicitly aimed target ID to attack-restriction
 plugins. It is local to the asynchronous attack, including deferred hits, and
 restores any outer context when the attack ends. This lets a plugin distinguish
 the aimed opponent from incidental area damage without changing target selection.
+Explicit hits use the target nominated by the original cast (`0xFFFF` means none), not
+the target of each hit packet, so bystanders cannot become aimed targets retroactively.

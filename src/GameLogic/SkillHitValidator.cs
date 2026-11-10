@@ -226,7 +226,18 @@ public class SkillHitValidator
     /// <param name="skill">The skill.</param>
     /// <param name="casterPosition">The position of the caster when the attack started.</param>
     /// <param name="targetAreaCenter">The target area center requested by the client.</param>
-    public void RegisterArea(ushort skillId, Skill skill, Point casterPosition, Point targetAreaCenter)
+    public void RegisterArea(ushort skillId, Skill skill, Point casterPosition, Point targetAreaCenter) =>
+        this.RegisterArea(skillId, skill, casterPosition, targetAreaCenter, ushort.MaxValue);
+
+    /// <summary>
+    /// Registers an area and the explicitly aimed target for its subsequent hit packets.
+    /// </summary>
+    /// <param name="skillId">The skill identifier.</param>
+    /// <param name="skill">The skill.</param>
+    /// <param name="casterPosition">The caster position.</param>
+    /// <param name="targetAreaCenter">The requested area center.</param>
+    /// <param name="explicitTargetId">The explicitly aimed target, or 0xFFFF if none.</param>
+    public void RegisterArea(ushort skillId, Skill skill, Point casterPosition, Point targetAreaCenter, ushort explicitTargetId)
     {
         var (center, range) = AreaSkillTargetSelector.GetQueryCenterAndRange(casterPosition, targetAreaCenter, skill);
         var timestamp = this._timeProvider.GetTimestamp();
@@ -235,8 +246,20 @@ public class SkillHitValidator
             : range;
         var animationCounter = this._lastAnimationCounters.GetValueOrDefault(skillId);
         var rangeSlack = Math.Max(0, this._configuration.SkillHitAreaRangeSlack);
-        this._areas[(skillId, animationCounter)] = new AreaEntry(center, maxDistance + rangeSlack, timestamp);
+        this._areas[(skillId, animationCounter)] = new AreaEntry(center, maxDistance + rangeSlack, timestamp, explicitTargetId);
     }
+
+    /// <summary>
+    /// Gets the aimed target recorded by the preceding cast, not by an individual hit packet.
+    /// Call only after validating the matching area with <see cref="IsTargetInArea"/>.
+    /// </summary>
+    /// <param name="skillId">The skill identifier.</param>
+    /// <param name="animationCounter">The animation counter of the hit.</param>
+    /// <returns>The recorded target, or 0xFFFF if no matching area exists.</returns>
+    public ushort GetExplicitAreaTargetId(ushort skillId, byte animationCounter = 0) =>
+        this._areas.TryGetValue((skillId, this.GetAnimationCounterOfHit(skillId, animationCounter)), out var area)
+            ? area.ExplicitTargetId
+            : ushort.MaxValue;
 
     /// <summary>
     /// Determines whether the target of an explicit area skill hit is inside the area of the matching attack.
@@ -295,7 +318,7 @@ public class SkillHitValidator
 
     private readonly record struct HitEntry(long TimeStamp, bool IsAnimation, int HitCount);
 
-    private readonly record struct AreaEntry(Point Center, double MaxDistance, long TimeStamp);
+    private readonly record struct AreaEntry(Point Center, double MaxDistance, long TimeStamp, ushort ExplicitTargetId);
 
     private readonly record struct HitCounterEntry(byte Counter, long TimeStamp);
 }

@@ -35,6 +35,8 @@ public class AreaSkillHitAction
 
         if (target.CheckSkillTargetRestrictions(player, usedSkill))
         {
+            using var attackContext = new AreaSkillAttackContext(
+                usedSkill, player.SkillHitValidator.GetExplicitAreaTargetId((ushort)usedSkill.Number, animationCounter));
             var hitInfo = await target.AttackByAsync(player, skill, false).ConfigureAwait(false);
             await target.TryApplyElementalEffectsAsync(player, skill, hitInfo).ConfigureAwait(false);
         }

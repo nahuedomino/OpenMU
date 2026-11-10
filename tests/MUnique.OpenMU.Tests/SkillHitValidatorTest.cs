@@ -230,6 +230,25 @@ public class SkillHitValidatorTest
     }
 
     /// <summary>
+    /// Target metadata belongs to the validated cast, not to whichever enemy is hit next.
+    /// </summary>
+    [Test]
+    public void ExplicitTargetIsRecordedPerSkillAndAnimation()
+    {
+        var validator = new SkillHitValidator(NullLogger.Instance);
+        var skill = new Skill { Number = (short)SkillId, Range = 5, SkillType = SkillType.AreaSkillExplicitHits };
+        var center = new Point(100, 100);
+        Assert.That(validator.GetExplicitAreaTargetId(SkillId), Is.EqualTo(ushort.MaxValue));
+        validator.RegisterArea(SkillId, skill, center, center, 42);
+        Assert.That(validator.IsTargetInArea(SkillId, center), Is.True);
+        Assert.That(validator.GetExplicitAreaTargetId(SkillId), Is.EqualTo(42));
+        Assert.That(validator.GetExplicitAreaTargetId(SkillId, 1), Is.EqualTo(ushort.MaxValue));
+        Assert.That(validator.GetExplicitAreaTargetId(SkillId + 1), Is.EqualTo(ushort.MaxValue));
+        validator.RegisterArea(SkillId, skill, center, center);
+        Assert.That(validator.GetExplicitAreaTargetId(SkillId), Is.EqualTo(ushort.MaxValue));
+    }
+
+    /// <summary>
     /// Tests that a hit without animation counter refers to the last animation of the skill,
     /// if its strategy says that the hits don't contain the animation counter.
     /// </summary>
