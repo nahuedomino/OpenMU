@@ -93,6 +93,14 @@ public class StrategyPlugInProvider<TKey, TPlugIn> : PlugInContainerBase<TPlugIn
         if (this._effectiveStrategies.TryGetValue(plugIn.Key, out var effective) && effective == plugIn)
         {
             this._effectiveStrategies.Remove(plugIn.Key);
+
+            // Another active plugin with the same key, which wasn't effective so far, takes over;
+            // e.g. a plugin which replaces a built-in strategy, when the built-in one gets deactivated.
+            if (this.ActivePlugIns.FirstOrDefault(p => !ReferenceEquals(p, plugIn) && Equals(p.Key, plugIn.Key)) is { } replacement)
+            {
+                this.SetEffectivePlugin(replacement);
+                this.Logger.LogInformation($"Plugin {replacement} with key {plugIn.Key} is now effective, because {plugIn} got deactivated.");
+            }
         }
     }
 

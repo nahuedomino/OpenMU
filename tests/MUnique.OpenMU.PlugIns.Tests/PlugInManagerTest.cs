@@ -358,6 +358,22 @@ public class PlugInManagerTest
     }
 
     /// <summary>
+    /// Tests if another active strategy plug in with the same key takes over, when the effective one gets deactivated.
+    /// </summary>
+    [Test]
+    public void ActiveStrategyPlugInWithSameKeyTakesOverWhenEffectiveOneIsDeactivated()
+    {
+        var manager = new PlugInManager(null, new NullLoggerFactory(), this.CreateServiceProvider(), null);
+        manager.RegisterPlugIn<IExampleStrategyPlugIn, ExampleStrategyPlugIn>();
+        manager.RegisterPlugIn<IExampleStrategyPlugIn, ReplacementExampleStrategyPlugIn>();
+        Assert.That(manager.GetStrategy<IExampleStrategyPlugIn>(ExampleStrategyPlugIn.CommandKey), Is.TypeOf<ExampleStrategyPlugIn>());
+
+        manager.DeactivatePlugIn<ExampleStrategyPlugIn>();
+
+        Assert.That(manager.GetStrategy<IExampleStrategyPlugIn>(ExampleStrategyPlugIn.CommandKey), Is.TypeOf<ReplacementExampleStrategyPlugIn>());
+    }
+
+    /// <summary>
     /// Tests if registering an already registered strategy plug in does not throw an error.
     /// </summary>
     [Test]
