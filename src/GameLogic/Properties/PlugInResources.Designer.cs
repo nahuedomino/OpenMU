@@ -5055,5 +5055,22 @@ namespace MUnique.OpenMU.GameLogic.Properties {
                 return ResourceManager.GetString("DiscordIntegrationFeaturePlugIn_Description", resourceCulture);
             }
         }
+        /// <summary>
+        ///   Looks up a localized string similar to Show the warp list after entering the game.
+        /// </summary>
+        public static string ShowWarpListAfterEnterWorldPlugIn_Name {
+            get {
+                return ResourceManager.GetString("ShowWarpListAfterEnterWorldPlugIn_Name", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Sends the warp list of the server to the open source client.
+        /// </summary>
+        public static string ShowWarpListAfterEnterWorldPlugIn_Description {
+            get {
+                return ResourceManager.GetString("ShowWarpListAfterEnterWorldPlugIn_Description", resourceCulture);
+            }
+        }
     }
 }

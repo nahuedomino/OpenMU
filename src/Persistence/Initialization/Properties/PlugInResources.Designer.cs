@@ -1037,5 +1037,11 @@ namespace MUnique.OpenMU.Persistence.Initialization.Properties {
         /// <summary>Gets the localized AddCraftingTalismansUpdatePlugIn_Description text.</summary>
         public static string AddCraftingTalismansUpdatePlugIn_Description => ResourceManager.GetString("AddCraftingTalismansUpdatePlugIn_Description", resourceCulture)!;
 
+        /// <summary>Gets the localized RestrictWarpsOutsideOfOriginalWarpWindowPlugIn_Name text.</summary>
+        public static string RestrictWarpsOutsideOfOriginalWarpWindowPlugIn_Name => ResourceManager.GetString("RestrictWarpsOutsideOfOriginalWarpWindowPlugIn_Name", resourceCulture)!;
+
+        /// <summary>Gets the localized RestrictWarpsOutsideOfOriginalWarpWindowPlugIn_Description text.</summary>
+        public static string RestrictWarpsOutsideOfOriginalWarpWindowPlugIn_Description => ResourceManager.GetString("RestrictWarpsOutsideOfOriginalWarpWindowPlugIn_Description", resourceCulture)!;
+
     }
 }

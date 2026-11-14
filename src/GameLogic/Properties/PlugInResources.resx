@@ -1840,4 +1840,10 @@
   <data name="MediumEliteHealingPotionConsumeHandlerPlugIn_Description" xml:space="preserve">
     <value>Plugin which handles the medium elite healing potion consumption. It recovers a part of the health immediately.</value>
   </data>
+  <data name="ShowWarpListAfterEnterWorldPlugIn_Name" xml:space="preserve">
+    <value>Show the warp list after entering the game</value>
+  </data>
+  <data name="ShowWarpListAfterEnterWorldPlugIn_Description" xml:space="preserve">
+    <value>Tells the client which warps the player can select in the warp window, when the player enters the game.</value>
+  </data>
 </root>
