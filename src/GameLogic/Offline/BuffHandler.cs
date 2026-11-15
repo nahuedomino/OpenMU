@@ -26,6 +26,13 @@ public sealed class BuffHandler
 
     private int _nextSlotIndex;
     private bool _buffTimerTriggered;
+
+    /// <summary>
+    /// The buffs (skill and target) which were already cast again in the current periodic refresh.
+    /// A refresh round recasts every configured buff on every target once, and ends with the first
+    /// tick which has nothing left to cast.
+    /// </summary>
+    private readonly HashSet<(short Skill, IAttackable Target)> _refreshedThisRound = [];
     private DateTime? _nextPeriodicBuffTime;
     private IList<int>? _cachedAutoBuffIds;
     private int _cachedAutoBuffSkillCount = -1;
@@ -140,13 +147,13 @@ public sealed class BuffHandler
             if (await this.TryApplyBuffAsync(skillEntry).ConfigureAwait(false))
             {
                 this._nextSlotIndex = (slotIndex + 1) % BuffSlotCount;
-                this._buffTimerTriggered = false;
                 return false;
             }
         }
 
         this._nextSlotIndex = 0;
         this._buffTimerTriggered = false;
+        this._refreshedThisRound.Clear();
         return true;
     }
 
@@ -215,7 +222,19 @@ public sealed class BuffHandler
                            ?? DefaultPlugin;
 
             await strategy.PerformSkillAsync(this._player, this._player, (ushort)skillEntry.Skill.Number).ConfigureAwait(false);
-            return this.IsEffectActive(this._player, skillEntry);
+            if (!this.IsEffectActive(this._player, skillEntry))
+            {
+                return false;
+            }
+
+            // The skill buffs the whole party at once.
+            this.MarkRefreshed(skillEntry, this._player);
+            foreach (var member in this._player.Party?.PartyList.OfType<IAttackable>() ?? [])
+            {
+                this.MarkRefreshed(skillEntry, member);
+            }
+
+            return true;
         }
 
         // The effect is applied directly instead of through the skill plugin, so the restrictions
@@ -230,6 +249,7 @@ public sealed class BuffHandler
             p => p.ShowSkillAnimationAsync(this._player, this._player, skillEntry.Skill!, true),
             includeThis: true).ConfigureAwait(false);
         await this._player.ApplyMagicEffectAsync(this._player, skillEntry).ConfigureAwait(false);
+        this.MarkRefreshed(skillEntry, this._player);
         return true;
     }
 
@@ -268,6 +288,7 @@ public sealed class BuffHandler
                 p => p.ShowSkillAnimationAsync(this._player, member, skillEntry.Skill!, true),
                 includeThis: true).ConfigureAwait(false);
             await member.ApplyMagicEffectAsync(this._player, skillEntry).ConfigureAwait(false);
+            this.MarkRefreshed(skillEntry, member);
             return true;
         }
 
@@ -291,7 +312,7 @@ public sealed class BuffHandler
             return true;
         }
 
-        return this._config!.BuffOnDuration && this._buffTimerTriggered;
+        return this._config!.BuffOnDuration && this.IsDueForRefresh(target, skillEntry);
     }
 
     /// <summary>
@@ -311,7 +332,7 @@ public sealed class BuffHandler
             return true;
         }
 
-        return this._config!.BuffDurationForParty && this._buffTimerTriggered;
+        return this._config!.BuffDurationForParty && this.IsDueForRefresh(target, skillEntry);
     }
 
     /// <summary>
@@ -352,6 +373,17 @@ public sealed class BuffHandler
         }
 
         return target.MagicEffectList.HasEffect(effectDef);
+    }
+
+    private bool IsDueForRefresh(IAttackable target, SkillEntry skillEntry)
+        => this._buffTimerTriggered && !this._refreshedThisRound.Contains((skillEntry.Skill!.Number, target));
+
+    private void MarkRefreshed(SkillEntry skillEntry, IAttackable target)
+    {
+        if (this._buffTimerTriggered)
+        {
+            this._refreshedThisRound.Add((skillEntry.Skill!.Number, target));
+        }
     }
 
     private void UpdatePeriodicBuffTimer()

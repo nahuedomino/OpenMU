@@ -239,6 +239,62 @@ public class BuffHandlerTests
         }
     }
 
+    /// <summary>
+    /// Tests that the periodic refresh ("Buff Duration" with a casting interval) recasts the active buffs
+    /// on the player and on every party member before they run out, not only the first one.
+    /// </summary>
+    [Test]
+    public async ValueTask PeriodicRefreshRecastsActiveBuffsOnThePlayerAndThePartyAsync()
+    {
+        var player = await this.CreateOfflinePlayerAsync().ConfigureAwait(false);
+        var member = await PlayerTestHelper.CreatePlayerAsync(this._gameContext).ConfigureAwait(false);
+        var skill = await AddSelfBuffSkillAsync(player, manaCost: 10, SkillTarget.Explicit).ConfigureAwait(false);
+        player.Attributes![Stats.CurrentHealth] = 100;
+        player.Attributes[Stats.CurrentMana] = 100;
+        var map = CreateMap(1);
+        player.SetCurrentMapSilently(map);
+        member.SetCurrentMapSilently(map);
+        player.Position = new Point(100, 100);
+        member.Position = new Point(101, 100);
+        player.IsAlive = true;
+        member.IsAlive = true;
+        var party = this._gameContext.PartyManager.CreateParty();
+        await party.AddAsync(player).ConfigureAwait(false);
+        await party.AddAsync(member).ConfigureAwait(false);
+        var settings = new MuHelperSettings
+        {
+            BuffSkill0Id = skill.Number,
+            HuntingRange = 5,
+            SupportParty = true,
+            BuffOnDuration = true,
+            BuffDurationForParty = true,
+            BuffCastIntervalSeconds = 1,
+        };
+        var handler = new BuffHandler(player, settings);
+
+        try
+        {
+            // The missing buffs: the player, then the member; then nothing is left to cast.
+            Assert.That(await handler.PerformBuffsAsync().ConfigureAwait(false), Is.False);
+            Assert.That(await handler.PerformBuffsAsync().ConfigureAwait(false), Is.False);
+            Assert.That(await handler.PerformBuffsAsync().ConfigureAwait(false), Is.True);
+            Assert.That(player.Attributes[Stats.CurrentMana], Is.EqualTo(80));
+
+            await Task.Delay(1100).ConfigureAwait(false);
+
+            // The interval has passed: both buffs are still active, and both are cast again, once.
+            Assert.That(await handler.PerformBuffsAsync().ConfigureAwait(false), Is.False);
+            Assert.That(await handler.PerformBuffsAsync().ConfigureAwait(false), Is.False);
+            Assert.That(await handler.PerformBuffsAsync().ConfigureAwait(false), Is.True);
+            Assert.That(player.Attributes[Stats.CurrentMana], Is.EqualTo(60));
+        }
+        finally
+        {
+            await player.MagicEffectList.ClearAllEffectsAsync().ConfigureAwait(false);
+            await member.MagicEffectList.ClearAllEffectsAsync().ConfigureAwait(false);
+        }
+    }
+
     private static GameMap CreateMap(short number)
     {
         return new GameMap(new Persistence.BasicModel.GameMapDefinition { Number = number }, TimeSpan.FromMinutes(1), 8);
