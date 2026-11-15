@@ -151,6 +151,17 @@ public class TargetedSkillDefaultPlugin : TargetedSkillPluginBase
     }
 
     /// <summary>
+    /// Determines whether the attackable is a summoned monster which only got into the splash of a skill aimed at
+    /// another target. Like <see cref="AreaSkillTargetSelector"/>, the splash spares summons: a hit on a summon
+    /// counts as an attack on its owner (self-defense), e.g. a party member's elf summon next to the hunted monster.
+    /// </summary>
+    /// <param name="attackable">The attackable in the splash range.</param>
+    /// <param name="targetedTarget">The explicitly targeted target of the skill.</param>
+    /// <returns><c>true</c>, if the attackable is a summon which isn't the explicit target.</returns>
+    private static bool IsSummonInSplash(IAttackable attackable, IAttackable targetedTarget)
+        => attackable != targetedTarget && attackable is Monster { SummonedBy: not null };
+
+    /// <summary>
     /// Determines the targets of the skill. It can be overridden by derived classes to provide custom target selection logic.
     /// </summary>
     /// <param name="player">The player.</param>
@@ -190,6 +201,7 @@ public class TargetedSkillDefaultPlugin : TargetedSkillPluginBase
                         .Where(a => a != player)
                         .Where(a => player.GameContext.Configuration.AreaSkillHitsPlayer || a is NonPlayerCharacter)
                         .Where(a => !a.IsAtSafezone())
+                        .Where(a => !IsSummonInSplash(a, targetedTarget))
                         .Where(a => filterPlugin.IsTargetWithinBounds(player, a, player.Position, rotationToTarget))
                         .ToList();
                 if (attackablesInRange is not null)
@@ -204,7 +216,8 @@ public class TargetedSkillDefaultPlugin : TargetedSkillPluginBase
             }
             else if (skill.ImplicitTargetRange > 0)
             {
-                var targetsOfTarget = targetedTarget.CurrentMap?.GetAttackablesInRange(targetedTarget.Position, skill.ImplicitTargetRange) ?? Enumerable.Empty<IAttackable>();
+                var targetsOfTarget = (targetedTarget.CurrentMap?.GetAttackablesInRange(targetedTarget.Position, skill.ImplicitTargetRange) ?? Enumerable.Empty<IAttackable>())
+                    .Where(a => !IsSummonInSplash(a, targetedTarget));
                 if (!player.GameContext.Configuration.AreaSkillHitsPlayer && targetedTarget is Monster)
                 {
                     return targetsOfTarget.OfType<Monster>();
