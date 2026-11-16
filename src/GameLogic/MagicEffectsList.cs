@@ -157,6 +157,7 @@ public class MagicEffectsList : AsyncDisposable
     public async ValueTask AddEffectAsync(MagicEffect effect)
     {
         bool added = false;
+        MagicEffect? refreshed = null;
         lock (this._sync)
         {
             if (effect.IsDisposed || effect.IsDisposing)
@@ -172,7 +173,7 @@ public class MagicEffectsList : AsyncDisposable
 
             if (this._contains[effect.Id])
             {
-                added = this.UpdateEffect(effect);
+                added = this.UpdateEffect(effect, out refreshed);
             }
             else
             {
@@ -196,6 +197,14 @@ public class MagicEffectsList : AsyncDisposable
         else
         {
             effect.Dispose();
+        }
+
+        // The owner learns how long its effect lasts, also when a recast only restarted the running effect's timer.
+        if ((added ? effect : refreshed) is { } timedEffect
+            && timedEffect.Id < InvisibleEffectStartIndex
+            && this._owner is IWorldObserver owner)
+        {
+            await owner.InvokeViewPlugInAsync<IMagicEffectDurationPlugIn>(p => p.ShowMagicEffectDurationAsync(timedEffect)).ConfigureAwait(false);
         }
     }
 
@@ -363,9 +372,11 @@ public class MagicEffectsList : AsyncDisposable
     /// </summary>
     /// <param name="effect">The effect.</param>
     /// <returns>True, if <paramref name="effect"/> is now tracked and needs activation; false, if it was merged into (or rejected by) the existing entry.</returns>
+    /// <param name="refreshed">The existing effect whose timer was restarted, if the effect was merged into it.</param>
     /// <remarks>Caller must hold <see cref="_sync"/>.</remarks>
-    private bool UpdateEffect(MagicEffect effect)
+    private bool UpdateEffect(MagicEffect effect, out MagicEffect? refreshed)
     {
+        refreshed = null;
         MagicEffect magicEffect = this._activeEffects[effect.Id];
         if (magicEffect.IsDisposed || magicEffect.IsDisposing)
         {
@@ -394,6 +405,7 @@ public class MagicEffectsList : AsyncDisposable
         //// This doesn't only save traffic, it also looks better in game.
         magicEffect.Duration = effect.Duration;
         magicEffect.ResetTimer();
+        refreshed = magicEffect;
 
         if (magicEffect.PowerUpElements.Select(e => e.Element)
             .SequenceEqual(effect.PowerUpElements.Select(e => e.Element)))
