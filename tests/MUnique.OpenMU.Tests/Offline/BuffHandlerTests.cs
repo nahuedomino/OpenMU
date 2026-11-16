@@ -295,6 +295,67 @@ public class BuffHandlerTests
         }
     }
 
+    /// <summary>
+    /// Tests that a member who joins the party is buffed right away, even with its buff still running and without the
+    /// "buff duration" options: the whole party gets every buff again once, as when the helper starts.
+    /// </summary>
+    [Test]
+    public async ValueTask MemberWhoJoinsIsBuffedRightAwayAsync()
+    {
+        var player = await this.CreateOfflinePlayerAsync().ConfigureAwait(false);
+        var member = await PlayerTestHelper.CreatePlayerAsync(this._gameContext).ConfigureAwait(false);
+        var newcomer = await PlayerTestHelper.CreatePlayerAsync(this._gameContext).ConfigureAwait(false);
+        var skill = await AddSelfBuffSkillAsync(player, manaCost: 10, SkillTarget.Explicit).ConfigureAwait(false);
+        player.Attributes![Stats.CurrentHealth] = 100;
+        player.Attributes[Stats.CurrentMana] = 100;
+        player.SelectedCharacter!.Name = "Elf";
+        member.SelectedCharacter!.Name = "Member";
+        newcomer.SelectedCharacter!.Name = "Newcomer";
+        var map = CreateMap(1);
+        foreach (var p in new Player[] { player, member, newcomer })
+        {
+            p.SetCurrentMapSilently(map);
+            p.Position = new Point(100, 100);
+            p.IsAlive = true;
+        }
+
+        var party = this._gameContext.PartyManager.CreateParty();
+        await party.AddAsync(player).ConfigureAwait(false);
+        await party.AddAsync(member).ConfigureAwait(false);
+        var handler = new BuffHandler(player, new MuHelperSettings { BuffSkill0Id = skill.Number, HuntingRange = 5, SupportParty = true });
+
+        try
+        {
+            while (!await handler.PerformBuffsAsync().ConfigureAwait(false))
+            {
+            }
+
+            Assert.That(player.Attributes[Stats.CurrentMana], Is.EqualTo(80));
+            Assert.That(await handler.PerformBuffsAsync().ConfigureAwait(false), Is.True);
+
+            // The newcomer's buff is still running (cast by someone else).
+            await newcomer.MagicEffectList.AddEffectAsync(new MagicEffect(TimeSpan.FromSeconds(60), skill.MagicEffectDef!)).ConfigureAwait(false);
+            await party.AddAsync(newcomer).ConfigureAwait(false);
+
+            var casts = 0;
+            while (!await handler.PerformBuffsAsync().ConfigureAwait(false))
+            {
+                casts++;
+            }
+
+            Assert.That(casts, Is.EqualTo(3));
+            Assert.That(player.Attributes[Stats.CurrentMana], Is.EqualTo(50));
+            Assert.That(await handler.PerformBuffsAsync().ConfigureAwait(false), Is.True);
+        }
+        finally
+        {
+            foreach (var p in new Player[] { player, member, newcomer })
+            {
+                await p.MagicEffectList.ClearAllEffectsAsync().ConfigureAwait(false);
+            }
+        }
+    }
+
     private static GameMap CreateMap(short number)
     {
         return new GameMap(new Persistence.BasicModel.GameMapDefinition { Number = number }, TimeSpan.FromMinutes(1), 8);

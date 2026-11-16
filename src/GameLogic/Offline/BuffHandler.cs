@@ -28,6 +28,17 @@ public sealed class BuffHandler
     private bool _buffTimerTriggered;
 
     /// <summary>
+    /// A member joined the party: every buff is cast again on everyone once, as when the helper starts, even if the
+    /// newcomer's buffs are still running and regardless of the "buff duration" options.
+    /// </summary>
+    private bool _memberJoinedRefresh;
+
+    /// <summary>
+    /// The names of the party members seen so far, to notice a newcomer.
+    /// </summary>
+    private HashSet<string> _partyMembersSeen = [];
+
+    /// <summary>
     /// The buffs (skill and target) which were already cast again in the current periodic refresh.
     /// A refresh round recasts every configured buff on every target once, and ends with the first
     /// tick which has nothing left to cast.
@@ -127,6 +138,7 @@ public sealed class BuffHandler
         }
 
         this.UpdatePeriodicBuffTimer();
+        this.NoticeNewPartyMembers();
 
         for (int i = 0; i < BuffSlotCount; i++)
         {
@@ -153,6 +165,7 @@ public sealed class BuffHandler
 
         this._nextSlotIndex = 0;
         this._buffTimerTriggered = false;
+        this._memberJoinedRefresh = false;
         this._refreshedThisRound.Clear();
         return true;
     }
@@ -312,7 +325,7 @@ public sealed class BuffHandler
             return true;
         }
 
-        return this._config!.BuffOnDuration && this.IsDueForRefresh(target, skillEntry);
+        return (this._config!.BuffOnDuration || this._memberJoinedRefresh) && this.IsDueForRefresh(target, skillEntry);
     }
 
     /// <summary>
@@ -332,7 +345,7 @@ public sealed class BuffHandler
             return true;
         }
 
-        return this._config!.BuffDurationForParty && this.IsDueForRefresh(target, skillEntry);
+        return (this._config!.BuffDurationForParty || this._memberJoinedRefresh) && this.IsDueForRefresh(target, skillEntry);
     }
 
     /// <summary>
@@ -376,14 +389,32 @@ public sealed class BuffHandler
     }
 
     private bool IsDueForRefresh(IAttackable target, SkillEntry skillEntry)
-        => this._buffTimerTriggered && !this._refreshedThisRound.Contains((skillEntry.Skill!.Number, target));
+        => (this._buffTimerTriggered || this._memberJoinedRefresh) && !this._refreshedThisRound.Contains((skillEntry.Skill!.Number, target));
 
     private void MarkRefreshed(SkillEntry skillEntry, IAttackable target)
     {
-        if (this._buffTimerTriggered)
+        if (this._buffTimerTriggered || this._memberJoinedRefresh)
         {
             this._refreshedThisRound.Add((skillEntry.Skill!.Number, target));
         }
+    }
+
+    private void NoticeNewPartyMembers()
+    {
+        if (this._config is not { SupportParty: true } || this._player.Party is not { } party)
+        {
+            this._partyMembersSeen.Clear();
+            return;
+        }
+
+        var members = party.PartyList.Where(m => !ReferenceEquals(m, this._player)).Select(m => m.Name).ToHashSet();
+        if (!members.IsSubsetOf(this._partyMembersSeen))
+        {
+            this._memberJoinedRefresh = true;
+            this._refreshedThisRound.Clear();
+        }
+
+        this._partyMembersSeen = members;
     }
 
     private void UpdatePeriodicBuffTimer()
