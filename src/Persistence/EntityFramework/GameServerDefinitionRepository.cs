@@ -33,13 +33,8 @@ internal class GameServerDefinitionRepository : CachingGenericRepository<GameSer
 
         if (obj is GameServerDefinition definition)
         {
-            var entityEntry = currentContext.Entry(obj);
-            foreach (var collection in entityEntry.Collections.Where(c => !c.IsLoaded && c.Metadata is INavigation))
-            {
-                await this.LoadCollectionAsync(entityEntry, (INavigation)collection.Metadata, currentContext, cancellationToken).ConfigureAwait(false);
-                collection.IsLoaded = true;
-            }
-
+            // First, because the collections can reference configuration types, e.g. the attribute of a join
+            // requirement, which are resolved through the current game configuration.
             if (definition.GameConfigurationId.HasValue)
             {
                 definition.RawGameConfiguration =
@@ -50,6 +45,13 @@ internal class GameServerDefinitionRepository : CachingGenericRepository<GameSer
                 {
                     context.CurrentGameConfiguration = definition.RawGameConfiguration;
                 }
+            }
+
+            var entityEntry = currentContext.Entry(obj);
+            foreach (var collection in entityEntry.Collections.Where(c => !c.IsLoaded && c.Metadata is INavigation))
+            {
+                await this.LoadCollectionAsync(entityEntry, (INavigation)collection.Metadata, currentContext, cancellationToken).ConfigureAwait(false);
+                collection.IsLoaded = true;
             }
 
             if (definition.ServerConfigurationId.HasValue)
